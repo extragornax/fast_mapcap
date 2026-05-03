@@ -53,6 +53,7 @@
   .fav-toggle:hover { color: #f1c40f; }
   .pmark.fav { box-shadow: 0 0 0 2px #f1c40f, 0 0 12px rgba(241,196,15,0.65); }
   .cactus-mark { font-size: 26px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9)); }
+  .cactus-mark img { width: 28px; height: 28px; object-fit: contain; }
   .marker-cluster { background: rgba(247, 129, 102, 0.2); border: 1px solid rgba(247, 129, 102, 0.6); }
   .marker-cluster div { background: rgba(247, 129, 102, 0.85); color: #fff; font-weight: 700; }
   .marker-cluster-small { background: rgba(63, 185, 80, 0.22); border-color: rgba(63, 185, 80, 0.6); }
@@ -643,12 +644,12 @@ if (location.hostname === 'madcap.extragornax.fr') {
         const prevDelta = prev.distance - prevCactusKm;
         const curDelta = cur.distance - cd.km;
         if (prevDelta > 0 && curDelta <= 0) {
-          fireNotif(`🌵 cactus caught ${name}`, {
+          fireNotif(`Pacer caught ${name}`, {
             body: `now ${Math.abs(curDelta).toFixed(1)} km behind the pacer`,
             tag: `dotwatcher-cactus-catch-${slug}-${id}`,
           });
         } else if (prevDelta <= 0 && curDelta > 0) {
-          fireNotif(`${name} passed the 🌵`, {
+          fireNotif(`${name} passed the pacer`, {
             body: `now ${curDelta.toFixed(1)} km ahead of the pacer`,
             tag: `dotwatcher-cactus-pass-${slug}-${id}`,
           });
@@ -1127,11 +1128,16 @@ if (location.hostname === 'madcap.extragornax.fr') {
   function computeCactusPath() {
     if (cactusPath) return cactusPath;
     if (!state || !state.info) return null;
-    const startMs = utcMs(state.info.start_date);
-    const endMs = utcMs(state.info.end_date);
-    if (startMs == null || endMs == null || endMs <= startMs) return null;
-    const route = ((state.geo && state.geo.routes) || []).find(r => r.name === 'Cactus');
+    const routes = (state.geo && state.geo.routes) || [];
+    let route = null, snail = null;
+    for (const r of routes) {
+      if (Array.isArray(r.snails) && r.snails.length > 0) { route = r; snail = r.snails[0]; break; }
+    }
+    if (!route) route = routes.find(r => r.name === 'Cactus') || null;
     if (!route) return null;
+    const startMs = utcMs(snail ? snail.start_date : state.info.start_date);
+    const endMs = utcMs(snail ? snail.end_date : state.info.end_date);
+    if (startMs == null || endMs == null || endMs <= startMs) return null;
     let gj = route.geojson;
     if (typeof gj === 'string') { try { gj = JSON.parse(gj); } catch { return null; } }
     const geom = gj && gj.geometry;
@@ -1139,7 +1145,8 @@ if (location.hostname === 'madcap.extragornax.fr') {
     const coords = geom.coordinates.map(c => [c[1], c[0]]);
     const cum = [0];
     for (let i = 1; i < coords.length; i++) cum.push(cum[i-1] + haversineKm(coords[i-1], coords[i]));
-    cactusPath = { coords, cum, total: cum[cum.length - 1], start: startMs, end: endMs };
+    const logoUrl = snail ? snail.logo_url : null;
+    cactusPath = { coords, cum, total: cum[cum.length - 1], start: startMs, end: endMs, logoUrl };
     return cactusPath;
   }
 
@@ -1293,7 +1300,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       const cp = cactusAt(currentPlaybackTime());
       if (cp) {
         cursorKm = cp.km;
-        cursorLabel = ` · 🌵 ${cp.km.toFixed(0)} km`;
+        cursorLabel = ` · ${cp.km.toFixed(0)} km (pacer)`;
       }
     }
     const cx = cursorKm != null ? xOf(cursorKm) : null;
@@ -1318,6 +1325,11 @@ if (location.hostname === 'madcap.extragornax.fr') {
     if (map) setTimeout(() => map.invalidateSize(), 0);
   }
 
+  function cactusIcon() {
+    const cp = computeCactusPath();
+    return cp && cp.logoUrl ? `<img src="${cp.logoUrl}" alt="pacer">` : '🌵';
+  }
+
   function renderCactus() {
     if (!map) return;
     const pos = cactusPosition();
@@ -1325,7 +1337,8 @@ if (location.hostname === 'madcap.extragornax.fr') {
       if (cactusMarker) { cactusMarker.remove(); cactusMarker = null; }
       return;
     }
-    const icon = L.divIcon({ className: '', html: '<div class="cactus-mark">🌵</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
+    const iconHtml = cactusIcon();
+    const icon = L.divIcon({ className: '', html: `<div class="cactus-mark">${iconHtml}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
     if (cactusMarker) {
       cactusMarker.setLatLng([pos.lat, pos.lng]);
       cactusMarker.setIcon(icon);
@@ -1333,7 +1346,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       cactusMarker = L.marker([pos.lat, pos.lng], { icon, keyboard: false, zIndexOffset: 1000 });
       cactusMarker.bindPopup(() => {
         const p = cactusPosition() || pos;
-        return `<b>🌵 Cactus</b><br/><span style="color:var(--mute)">${(p.fraction*100).toFixed(1)}% of route · ${p.distance.toFixed(1)} / ${p.total.toFixed(0)} km</span>`;
+        return `<b>${cactusIcon()} Pacer</b><br/><span style="color:var(--mute)">${(p.fraction*100).toFixed(1)}% of route · ${p.distance.toFixed(1)} / ${p.total.toFixed(0)} km</span>`;
       });
       cactusMarker.addTo(map);
     }
@@ -2150,7 +2163,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
         const dk = p.distance - cd.km;
         const dh = dk / cd.speedKmh;
         const cls = Math.abs(dk) < 0.5 ? 'even' : (dk > 0 ? 'ahead' : 'behind');
-        deltaHtml = `<div class="delta ${cls}" title="vs 🌵 cactus pacer">${fmtDelta(dk, dh)}</div>`;
+        deltaHtml = `<div class="delta ${cls}" title="vs pacer">${fmtDelta(dk, dh)}</div>`;
       }
       div.innerHTML = `
         <div class="rank">#${rankNum ?? '-'}</div>
