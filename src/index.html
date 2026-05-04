@@ -1089,46 +1089,48 @@ if (location.hostname === 'madcap.extragornax.fr') {
     mapLayers.tile = L.tileLayer(t.url, t.opts).addTo(map);
   }
 
+  let _lastGeoKey = null;
   function renderMap() {
     if (!state || !map) return;
 
-    // --- routes ---
-    mapLayers.routes.clearLayers();
-    const allRouteBounds = [];
-    for (const r of (state.geo.routes || [])) {
-      let gj = r.geojson;
-      if (typeof gj === 'string') {
-        try { gj = JSON.parse(gj); } catch { continue; }
+    // --- routes & checkpoints (only rebuild when geo data changes) ---
+    const geoKey = JSON.stringify([
+      (state.geo.routes || []).map(r => r.name),
+      (state.geo.cps || []).map(c => c.short_name + c.order),
+    ]);
+    if (geoKey !== _lastGeoKey) {
+      _lastGeoKey = geoKey;
+      mapLayers.routes.clearLayers();
+      for (const r of (state.geo.routes || [])) {
+        let gj = r.geojson;
+        if (typeof gj === 'string') {
+          try { gj = JSON.parse(gj); } catch { continue; }
+        }
+        const color = r.name === 'Cactus' ? '#e6d7b8' : (r.color || '#f78166');
+        L.geoJSON(gj, { style: { color, weight: 3, opacity: 0.85 } }).addTo(mapLayers.routes);
       }
-      const color = r.name === 'Cactus' ? '#e6d7b8' : (r.color || '#f78166');
-      const layer = L.geoJSON(gj, {
-        style: { color, weight: 3, opacity: 0.85 },
-      });
-      layer.addTo(mapLayers.routes);
-      try { allRouteBounds.push(layer.getBounds()); } catch {}
-    }
-
-    // --- checkpoints ---
-    mapLayers.cps.clearLayers();
-    for (const c of (state.geo.cps || [])) {
-      const isStart = c.cp_type === 'START' || c.order === 0;
-      const isEnd = c.cp_type === 'END';
-      const cls = 'cpmark' + (isStart ? ' start' : isEnd ? ' end' : '');
-      const icon = L.divIcon({
-        className: '',
-        html: `<div class="${cls}">${escape(c.short_name || ('CP' + c.order))}</div>`,
-        iconSize: null,
-        iconAnchor: [0, 0],
-      });
-      L.marker([c.latitude, c.longitude], { icon, keyboard: false })
-        .bindPopup(`<b>${escape(c.short_name || '')}</b> — ${escape(c.name || '')}<br/><span style="color:var(--mute)">${escape(c.cp_type || '')}</span>`)
-        .addTo(mapLayers.cps);
+      mapLayers.cps.clearLayers();
+      for (const c of (state.geo.cps || [])) {
+        const isStart = c.cp_type === 'START' || c.order === 0;
+        const isEnd = c.cp_type === 'END';
+        const cls = 'cpmark' + (isStart ? ' start' : isEnd ? ' end' : '');
+        const icon = L.divIcon({
+          className: '',
+          html: `<div class="${cls}">${escape(c.short_name || ('CP' + c.order))}</div>`,
+          iconSize: null,
+          iconAnchor: [0, 0],
+        });
+        L.marker([c.latitude, c.longitude], { icon, keyboard: false })
+          .bindPopup(`<b>${escape(c.short_name || '')}</b> — ${escape(c.name || '')}<br/><span style="color:var(--mute)">${escape(c.cp_type || '')}</span>`)
+          .addTo(mapLayers.cps);
+      }
     }
 
     // --- participants ---
     const partsById = new Map(state.participants.map(p => [p.id, p]));
     const shownParts = favOnly ? state.participants.filter(p => favs.has(p.id)) : state.participants;
     const seen = new Set();
+    let clustersDirty = false;
     for (const p of shownParts) {
       const pt = lastPointOf(p.id);
       if (!pt) continue;
@@ -1147,13 +1149,17 @@ if (location.hostname === 'madcap.extragornax.fr') {
         html = `<div class="plabel${stateCls}"><span class="pdot" style="background:${color}"></span>${escape(label)}</div>`;
       }
       if (existing) {
-        existing.setLatLng([pt.lat, pt.lng]);
         if (existing._iconHtmlCache !== html) {
           existing._iconHtmlCache = html;
           const icon = labelStyle === 'dot'
             ? L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] })
             : L.divIcon({ className: '', html, iconSize: null, iconAnchor: [8, 10] });
           existing.setIcon(icon);
+          existing.setLatLng([pt.lat, pt.lng]);
+        } else {
+          // Move without triggering cluster remove/re-add
+          existing._latlng = L.latLng(pt.lat, pt.lng);
+          if (existing._map) existing.update();
         }
       } else {
         const icon = labelStyle === 'dot'
@@ -1165,6 +1171,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
         m.on('click', () => { selected = partsById.get(p.id); render(); });
         m.addTo(mapLayers.participants);
         mapLayers.participantMarkers.set(p.id, m);
+        clustersDirty = true;
       }
     }
     // Remove markers for participants that no longer have a position.
@@ -1172,6 +1179,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       if (!seen.has(id)) {
         mapLayers.participants.removeLayer(m);
         mapLayers.participantMarkers.delete(id);
+        clustersDirty = true;
       }
     }
     document.getElementById('mapcount').textContent = favOnly
@@ -1183,7 +1191,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
     const gpxBtn = document.getElementById('map-gpx');
     gpxBtn.style.display = (hasRoutes || hasTracks) ? '' : 'none';
 
-    if (typeof mapLayers.participants.refreshClusters === 'function') {
+    if (clustersDirty && typeof mapLayers.participants.refreshClusters === 'function') {
       mapLayers.participants.refreshClusters();
     }
 

@@ -10,7 +10,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 - **UI micro-animations.** Elevation banner fades/slides in instead of popping. Settings and GPX panels scale in from their trigger corner with a strong ease-out curve. Map buttons, tabs, pills, cards, and star toggles have press feedback (subtle scale on `:active`). Side menu uses a stronger iOS-style drawer easing. Cards lift with a shadow on hover. All animations respect `prefers-reduced-motion`.
 
 ### Fixed
-- **Map marker labels no longer flicker on refresh.** Marker icons are now only re-created when their HTML actually changes (selection, state, label style), instead of being torn down and rebuilt every render cycle.
+- **Map marker labels no longer flicker on refresh.** Marker icons are only re-created when their HTML actually changes. Position updates bypass the cluster group's remove/re-add cycle by writing the latlng directly. Routes and checkpoints are also cached and only rebuilt when geo data changes.
 - **Follow mode auto-disables when user pans the map.** Dragging the map now turns off the "follow" toggle so the view stays where you moved it.
 
 - **Rider position interpolation between pings.** Estimates rider positions between GPS pings using time-based interpolation. When the event has a route, riders are interpolated along the route polyline (snapped within 2 km threshold); without a route, linear lat/lng interpolation is used. Beyond the last known point, extrapolates up to 2 minutes using the rider's last reported speed and bearing. A 2-second ticker smoothly repositions markers in live mode without requiring a full data refresh.
