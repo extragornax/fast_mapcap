@@ -1079,6 +1079,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       didFit: false,
     };
     applyMapTheme();
+    map.on('dragstart', () => { if (followSelected) setFollowSelected(false); });
   }
 
   function applyMapTheme() {
@@ -1138,20 +1139,28 @@ if (location.hostname === 'madcap.extragornax.fr') {
       const lpMs = utcMs(p.last_ping);
       const stale = lpMs != null && (Date.now() - lpMs) > 15 * 60000;
       const stateCls = (isSelected ? ' selected' : '') + (favs.has(p.id) ? ' fav' : '') + (p.sleeping ? ' sleep' : '') + (stale ? ' stale' : '');
-      let icon;
+      let html;
       if (labelStyle === 'dot') {
-        const html = `<div class="pmark${stateCls}" style="background:${color}"></div>`;
-        icon = L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] });
+        html = `<div class="pmark${stateCls}" style="background:${color}"></div>`;
       } else {
         const label = labelStyle === 'bib' ? (p.bib || '-') : (p.last_name || p.first_name || p.nickname || '-');
-        const html = `<div class="plabel${stateCls}"><span class="pdot" style="background:${color}"></span>${escape(label)}</div>`;
-        icon = L.divIcon({ className: '', html, iconSize: null, iconAnchor: [8, 10] });
+        html = `<div class="plabel${stateCls}"><span class="pdot" style="background:${color}"></span>${escape(label)}</div>`;
       }
       if (existing) {
         existing.setLatLng([pt.lat, pt.lng]);
-        existing.setIcon(icon);
+        if (existing._iconHtmlCache !== html) {
+          existing._iconHtmlCache = html;
+          const icon = labelStyle === 'dot'
+            ? L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] })
+            : L.divIcon({ className: '', html, iconSize: null, iconAnchor: [8, 10] });
+          existing.setIcon(icon);
+        }
       } else {
+        const icon = labelStyle === 'dot'
+          ? L.divIcon({ className: '', html, iconSize: [14, 14], iconAnchor: [7, 7] })
+          : L.divIcon({ className: '', html, iconSize: null, iconAnchor: [8, 10] });
         const m = L.marker([pt.lat, pt.lng], { icon, riseOnHover: true });
+        m._iconHtmlCache = html;
         m.bindPopup(() => participantPopup(partsById.get(p.id)));
         m.on('click', () => { selected = partsById.get(p.id); render(); });
         m.addTo(mapLayers.participants);
