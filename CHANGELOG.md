@@ -6,6 +6,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 
 ## [Unreleased]
 
+### Added
+- **Rider position interpolation between pings.** Estimates rider positions between GPS pings using time-based interpolation. When the event has a route, riders are interpolated along the route polyline (snapped within 2 km threshold); without a route, linear lat/lng interpolation is used. Beyond the last known point, extrapolates up to 2 minutes using the rider's last reported speed and bearing. A 2-second ticker smoothly repositions markers in live mode without requiring a full data refresh.
+
 ### Changed
 - **Renamed project to "dotwatcher".** All user-facing names, Prometheus metric prefixes (`madcap_*` → `dotwatcher_*`), localStorage keys, notification tags, Docker service/container/network names, Grafana dashboard/folder names, env vars (`MADCAP_CACHE_DIR` → `DOTWATCHER_CACHE_DIR`, `MADCAP_WARM_SLUG` → `DOTWATCHER_WARM_SLUG`), user-agent string, Cargo package name, and Dockerfile binary references updated. External `api.madcap.cc` upstream URL unchanged.
 

@@ -521,6 +521,9 @@ if (location.hostname === 'madcap.extragornax.fr') {
   let cactusMarker = null;
   let cactusTimer = null;
 
+  let routeIndex = null;   // { coords, cum, total } for snapping interpolation to route
+  let routeIndexGeo = null; // cache key: reference to state.geo
+
   let playbackTime = null; // null = live
   let playing = false;
   let playSpeedFactor = 1200;
@@ -863,17 +866,77 @@ if (location.hostname === 'madcap.extragornax.fr') {
   function lastPointOf(participantId) {
     const t = (state.tracks.tracks || []).find(x => x.participant_id === participantId);
     if (!t || !t.track || !t.track.length) return null;
-    if (playbackTime == null) {
-      const p = t.track[t.track.length - 1];
-      return { lat: p[1], lng: p[2], elev: p[3], t: p[0] };
-    }
+
     const startMs = eventStartMs();
-    if (!startMs) return null;
-    const relSec = (playbackTime - startMs) / 1000;
-    const idx = binSearchLE(t.track, relSec);
-    if (idx < 0) return null;
-    const p = t.track[idx];
-    return { lat: p[1], lng: p[2], elev: p[3], t: p[0] };
+    const nowRelSec = startMs ? (currentPlaybackTime() - startMs) / 1000 : null;
+
+    // Determine the bracketing index.
+    let idx;
+    if (playbackTime == null) {
+      idx = t.track.length - 1;
+    } else {
+      if (!startMs) return null;
+      const relSec = (playbackTime - startMs) / 1000;
+      idx = binSearchLE(t.track, relSec);
+      if (idx < 0) return null;
+    }
+
+    const pA = t.track[idx];
+    const pB = idx < t.track.length - 1 ? t.track[idx + 1] : null;
+
+    // No interpolation possible — return the exact point.
+    if (!nowRelSec || nowRelSec <= pA[0]) {
+      return { lat: pA[1], lng: pA[2], elev: pA[3], t: pA[0] };
+    }
+
+    // Interpolate between pA and pB (or extrapolate from pA using speed).
+    const ri = getRouteIndex();
+    const SNAP_THRESHOLD_KM = 2; // only snap to route if within 2 km
+    if (pB && nowRelSec < pB[0]) {
+      const f = (nowRelSec - pA[0]) / (pB[0] - pA[0]);
+      if (ri) {
+        const sA = snapToRoute(ri, pA[1], pA[2]);
+        const sB = snapToRoute(ri, pB[1], pB[2]);
+        if (sA.offRoute < SNAP_THRESHOLD_KM && sB.offRoute < SNAP_THRESHOLD_KM) {
+          const kmInterp = sA.km + (sB.km - sA.km) * f;
+          const [lat, lng] = posOnRoute(ri, kmInterp);
+          const elev = pA[3] + (pB[3] - pA[3]) * f;
+          return { lat, lng, elev, t: nowRelSec };
+        }
+      }
+      return {
+        lat: pA[1] + (pB[1] - pA[1]) * f,
+        lng: pA[2] + (pB[2] - pA[2]) * f,
+        elev: pA[3] + (pB[3] - pA[3]) * f,
+        t: nowRelSec,
+      };
+    }
+
+    // Extrapolate beyond the last known point using speed (cap at 2 min).
+    const speed = pA[4]; // km/h
+    if (!speed || speed <= 0) return { lat: pA[1], lng: pA[2], elev: pA[3], t: pA[0] };
+    const dtSec = Math.min(nowRelSec - pA[0], 120);
+    const dKm = speed * (dtSec / 3600);
+    if (ri) {
+      const sA = snapToRoute(ri, pA[1], pA[2]);
+      if (sA.offRoute < SNAP_THRESHOLD_KM) {
+        const [lat, lng] = posOnRoute(ri, sA.km + dKm);
+        return { lat, lng, elev: pA[3], t: nowRelSec };
+      }
+    }
+    // Without route: extrapolate along the bearing from the previous point.
+    if (idx > 0) {
+      const prev = t.track[idx - 1];
+      const dLat = pA[1] - prev[1], dLng = pA[2] - prev[2];
+      const segKm = haversineKm([prev[1], prev[2]], [pA[1], pA[2]]) || 0.001;
+      const scale = dKm / segKm;
+      return {
+        lat: pA[1] + dLat * scale,
+        lng: pA[2] + dLng * scale,
+        elev: pA[3], t: nowRelSec,
+      };
+    }
+    return { lat: pA[1], lng: pA[2], elev: pA[3], t: pA[0] };
   }
 
   let scheduledRender = null;
@@ -883,6 +946,32 @@ if (location.hostname === 'madcap.extragornax.fr') {
       scheduledRender = null;
       if (map) renderMap();
     });
+  }
+
+  // Lightweight ticker: reposition existing markers via interpolation.
+  let interpTimer = null;
+  function startInterpTicker() {
+    if (interpTimer) return;
+    interpTimer = setInterval(tickInterpolation, 2000);
+  }
+  function tickInterpolation() {
+    if (!map || !mapLayers || !state) return;
+    // During playback the scrubber drives renderMap() — skip.
+    if (playbackTime != null) return;
+    for (const [id, marker] of mapLayers.participantMarkers) {
+      const pt = lastPointOf(id);
+      if (!pt) continue;
+      marker.setLatLng([pt.lat, pt.lng]);
+    }
+    if (followSelected && selected) {
+      const pt = lastPointOf(selected.id);
+      if (pt) {
+        const c = map.getCenter();
+        if (Math.abs(c.lat - pt.lat) > 1e-5 || Math.abs(c.lng - pt.lng) > 1e-5) {
+          map.panTo([pt.lat, pt.lng], { animate: true, duration: 0.25, easeLinearity: 0.5, noMoveStart: true });
+        }
+      }
+    }
   }
 
   function fmtScrubTime(ms) {
@@ -1087,6 +1176,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
     renderCactus();
     renderCourseElev();
     if (!cactusTimer) cactusTimer = setInterval(renderCactus, 60000);
+    startInterpTicker();
     updateScrubberUI();
 
     // Auto-follow: keep the selected rider centred (smooth pan during playback).
@@ -1123,6 +1213,71 @@ if (location.hostname === 'madcap.extragornax.fr') {
     const dLon = (b[1] - a[1]) * toRad;
     const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*toRad) * Math.cos(b[0]*toRad) * Math.sin(dLon/2)**2;
     return 2 * R * Math.asin(Math.sqrt(s));
+  }
+
+  function getRouteIndex() {
+    if (routeIndexGeo === state.geo && routeIndex !== undefined) return routeIndex;
+    routeIndexGeo = state.geo;
+    routeIndex = null;
+    const routes = (state.geo && state.geo.routes) || [];
+    if (!routes.length) return null;
+    // Pick the first route with a LineString geometry.
+    for (const r of routes) {
+      let gj = r.geojson;
+      if (typeof gj === 'string') { try { gj = JSON.parse(gj); } catch { continue; } }
+      const geom = gj && (gj.geometry || gj);
+      if (!geom || geom.type !== 'LineString' || !geom.coordinates || geom.coordinates.length < 2) continue;
+      let coords = geom.coordinates.map(c => [c[1], c[0]]); // [lat, lng]
+      // Downsample to ~1000 points for snap performance.
+      if (coords.length > 1000) {
+        const step = (coords.length - 1) / 999;
+        const sampled = [coords[0]];
+        for (let i = 1; i < 999; i++) sampled.push(coords[Math.round(i * step)]);
+        sampled.push(coords[coords.length - 1]);
+        coords = sampled;
+      }
+      const cum = [0];
+      for (let i = 1; i < coords.length; i++) cum.push(cum[i - 1] + haversineKm(coords[i - 1], coords[i]));
+      routeIndex = { coords, cum, total: cum[cum.length - 1] };
+      break;
+    }
+    return routeIndex;
+  }
+
+  // Find the route-distance (km) of the point on the route closest to [lat, lng].
+  // Returns { km, offRoute } where offRoute is approximate distance from route in km.
+  function snapToRoute(ri, lat, lng) {
+    let bestDist = Infinity, bestKm = 0;
+    for (let i = 0; i < ri.coords.length - 1; i++) {
+      const [aLat, aLng] = ri.coords[i];
+      const [bLat, bLng] = ri.coords[i + 1];
+      const dx = bLng - aLng, dy = bLat - aLat;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? ((lng - aLng) * dx + (lat - aLat) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const pLat = aLat + t * dy, pLng = aLng + t * dx;
+      const d = (pLat - lat) ** 2 + (pLng - lng) ** 2;
+      if (d < bestDist) {
+        bestDist = d;
+        bestKm = ri.cum[i] + t * (ri.cum[i + 1] - ri.cum[i]);
+      }
+    }
+    const offRoute = Math.sqrt(bestDist) * 111; // rough deg-to-km
+    return { km: bestKm, offRoute };
+  }
+
+  // Given a route-distance in km, return [lat, lng] on the route.
+  function posOnRoute(ri, km) {
+    km = Math.max(0, Math.min(ri.total, km));
+    let lo = 0, hi = ri.cum.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (ri.cum[mid] <= km) lo = mid; else hi = mid;
+    }
+    const segLen = ri.cum[hi] - ri.cum[lo] || 1;
+    const f = (km - ri.cum[lo]) / segLen;
+    const a = ri.coords[lo], b = ri.coords[hi];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
   }
 
   function computeCactusPath() {
