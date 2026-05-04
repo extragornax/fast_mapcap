@@ -7,6 +7,8 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 ## [Unreleased]
 
 ### Added
+- **UI micro-animations.** Elevation banner fades/slides in instead of popping. Settings and GPX panels scale in from their trigger corner with a strong ease-out curve. Map buttons, tabs, pills, cards, and star toggles have press feedback (subtle scale on `:active`). Side menu uses a stronger iOS-style drawer easing. Cards lift with a shadow on hover. All animations respect `prefers-reduced-motion`.
+
 - **Rider position interpolation between pings.** Estimates rider positions between GPS pings using time-based interpolation. When the event has a route, riders are interpolated along the route polyline (snapped within 2 km threshold); without a route, linear lat/lng interpolation is used. Beyond the last known point, extrapolates up to 2 minutes using the rider's last reported speed and bearing. A 2-second ticker smoothly repositions markers in live mode without requiring a full data refresh.
 
 ### Changed
