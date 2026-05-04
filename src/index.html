@@ -963,14 +963,16 @@ if (location.hostname === 'madcap.extragornax.fr') {
     if (interpTimer) return;
     interpTimer = setInterval(tickInterpolation, 2000);
   }
+  const _markerSetLatLng = L.Marker.prototype.setLatLng;
   function tickInterpolation() {
     if (!map || !mapLayers || !state) return;
-    // During playback the scrubber drives renderMap() — skip.
     if (playbackTime != null) return;
     for (const [id, marker] of mapLayers.participantMarkers) {
       const pt = lastPointOf(id);
       if (!pt) continue;
-      marker.setLatLng([pt.lat, pt.lng]);
+      const old = marker.getLatLng();
+      if (Math.abs(old.lat - pt.lat) < 1e-7 && Math.abs(old.lng - pt.lng) < 1e-7) continue;
+      _markerSetLatLng.call(marker, [pt.lat, pt.lng]);
     }
     if (followSelected && selected) {
       const pt = lastPointOf(selected.id);
@@ -1157,9 +1159,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
           existing.setIcon(icon);
           existing.setLatLng([pt.lat, pt.lng]);
         } else {
-          // Move without triggering cluster remove/re-add
-          existing._latlng = L.latLng(pt.lat, pt.lng);
-          if (existing._map) existing.update();
+          _markerSetLatLng.call(existing, [pt.lat, pt.lng]);
         }
       } else {
         const icon = labelStyle === 'dot'
