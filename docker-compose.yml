@@ -7,7 +7,7 @@ services:
     container_name: dotwatcher
     restart: unless-stopped
     ports:
-      - "${HOST_PORT:-9004}:9004"
+      - "127.0.0.1:${HOST_PORT:-9004}:9004"
     environment:
       PORT: "9004"
       MADCAP_WARM_SLUG: "${MADCAP_WARM_SLUG:-desertus-bikus-26}"
