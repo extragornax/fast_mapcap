@@ -7,6 +7,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 ## [Unreleased]
 
 ### Added
+- **Map "estimate" toggle (default off).** New button in the map settings overlay. When off (default), rider markers show the exact last position returned by the API. When on, positions are interpolated between pings and extrapolated up to 2 minutes from the last ping (previous behavior). Persisted in `localStorage` under `dotwatcher_map_interp`.
+
+### Added
 - **UI micro-animations.** Elevation banner fades/slides in instead of popping. Settings and GPX panels scale in from their trigger corner with a strong ease-out curve. Map buttons, tabs, pills, cards, and star toggles have press feedback (subtle scale on `:active`). Side menu uses a stronger iOS-style drawer easing. Cards lift with a shadow on hover. All animations respect `prefers-reduced-motion`.
 
 ### Fixed

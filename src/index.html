@@ -396,6 +396,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       <button id="map-follow" class="map-btn" type="button" title="pan map to keep the selected rider centred" aria-pressed="false">follow</button>
       <button id="map-night" class="map-btn" type="button" title="shade the nighttime hemisphere" aria-pressed="false">night</button>
       <button id="map-wind" class="map-btn" type="button" title="overlay a grid of wind arrows over the course" aria-pressed="false">wind</button>
+      <button id="map-interp" class="map-btn" type="button" title="show estimated rider position between API pings (default: exact API position)" aria-pressed="false">estimate</button>
     </div>
     <div class="ms-row" style="margin-top:6px">
       <label for="map-wind-density">Wind density</label>
@@ -486,6 +487,9 @@ if (location.hostname === 'madcap.extragornax.fr') {
   const TRACES_KEY = 'dotwatcher_map_traces';
   let showTraces = localStorage.getItem(TRACES_KEY) !== '0';
 
+  const INTERP_KEY = 'dotwatcher_map_interp';
+  let interpEnabled = localStorage.getItem(INTERP_KEY) === '1';
+
   const ELEV_KEY = 'dotwatcher_map_elev';
   let showElev = localStorage.getItem(ELEV_KEY) !== '0';
 
@@ -571,6 +575,14 @@ if (location.hostname === 'madcap.extragornax.fr') {
     const b = document.getElementById('map-traces');
     if (b) { b.classList.toggle('on', showTraces); b.setAttribute('aria-pressed', showTraces); }
     if (map) renderTraces();
+  }
+
+  function setInterpEnabled(v) {
+    interpEnabled = !!v;
+    localStorage.setItem(INTERP_KEY, interpEnabled ? '1' : '0');
+    const b = document.getElementById('map-interp');
+    if (b) { b.classList.toggle('on', interpEnabled); b.setAttribute('aria-pressed', interpEnabled); }
+    if (map) renderMap();
   }
 
   function fireNotif(title, opts) {
@@ -892,6 +904,11 @@ if (location.hostname === 'madcap.extragornax.fr') {
 
     const pA = t.track[idx];
     const pB = idx < t.track.length - 1 ? t.track[idx + 1] : null;
+
+    // Default: exact position from API. Interpolation/extrapolation is opt-in.
+    if (!interpEnabled) {
+      return { lat: pA[1], lng: pA[2], elev: pA[3], t: pA[0] };
+    }
 
     // No interpolation possible — return the exact point.
     if (!nowRelSec || nowRelSec <= pA[0]) {
@@ -3169,6 +3186,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
   document.getElementById('map-follow').addEventListener('click', () => setFollowSelected(!followSelected));
   document.getElementById('map-night').addEventListener('click', () => setShowNight(!showNight));
   document.getElementById('map-wind').addEventListener('click', () => setShowWind(!showWind));
+  document.getElementById('map-interp').addEventListener('click', () => setInterpEnabled(!interpEnabled));
   document.getElementById('map-gpx').addEventListener('click', toggleGpxPanel);
   document.getElementById('gpx-panel').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-gpx-route],[data-gpx-track]');
@@ -3334,6 +3352,8 @@ if (location.hostname === 'madcap.extragornax.fr') {
     if (nBtn) { nBtn.classList.toggle('on', showNight); nBtn.setAttribute('aria-pressed', showNight); }
     const wBtn = document.getElementById('map-wind');
     if (wBtn) { wBtn.classList.toggle('on', showWind); wBtn.setAttribute('aria-pressed', showWind); }
+    const iBtn = document.getElementById('map-interp');
+    if (iBtn) { iBtn.classList.toggle('on', interpEnabled); iBtn.setAttribute('aria-pressed', interpEnabled); }
     load().then(() => {
       if (urlState.pid) {
         const p = state.participants.find(x => x.id === urlState.pid);
