@@ -6,27 +6,60 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 
 ## [Unreleased]
 
+## eac755a — Add "estimate" toggle to opt into rider position interpolation
+
 ### Added
 - **Map "estimate" toggle (default off).** New button in the map settings overlay. When off (default), rider markers show the exact last position returned by the API. When on, positions are interpolated between pings and extrapolated up to 2 minutes from the last ping (previous behavior). Persisted in `localStorage` under `dotwatcher_map_interp`.
+
+## d60a957 — Fix map auto-fit to frame full GPX route and all checkpoints on open
+
+### Fixed
+- **Map auto-fits to full GPX route + all checkpoints on open.** Initial fit was referencing an undefined `allRouteBounds` variable, throwing silently and leaving the map at the default `[43, -1] zoom 6` view. Now iterates `mapLayers.routes` layers via `getBounds()` and extends with every CP coordinate so the whole course frames on first render.
+
+## af6b43a — Fix marker movement by using `L.Marker.prototype.setLatLng` to bypass cluster override
+
+### Fixed
+- **Marker movement uses raw `L.Marker.prototype.setLatLng`.** Both `renderMap()` and the 2-second interpolation ticker now call the prototype method directly so MarkerClusterGroup's override (which removes and re-adds the marker on every position update) doesn't reset the DOM node.
+
+## 8afc233 — Eliminate marker label flicker by bypassing cluster remove/re-add on position updates
+
+### Fixed
+- **Marker labels no longer flicker on position updates.** Position-only updates skip the cluster remove/re-add path entirely; the existing icon stays in place. Only icon HTML changes trigger a `setIcon()`.
+
+## 716594f — Fix map marker flicker on refresh and auto-disable follow on user pan
+
+### Fixed
+- **Map marker labels no longer flicker on refresh.** Marker icons are only re-created when their HTML actually changes. The interpolation ticker also skips markers whose position hasn't moved. Routes and checkpoints are cached and only rebuilt when geo data changes.
+- **Follow mode auto-disables when user pans the map.** Dragging the map now turns off the "follow" toggle so the view stays where you moved it.
+
+## 9e9729d — Add UI micro-animations for panels, buttons, and interactive elements
 
 ### Added
 - **UI micro-animations.** Elevation banner fades/slides in instead of popping. Settings and GPX panels scale in from their trigger corner with a strong ease-out curve. Map buttons, tabs, pills, cards, and star toggles have press feedback (subtle scale on `:active`). Side menu uses a stronger iOS-style drawer easing. Cards lift with a shadow on hover. All animations respect `prefers-reduced-motion`.
 
-### Fixed
-- **Map auto-fits to full GPX route + all checkpoints on open.** Initial fit was referencing an undefined `allRouteBounds` variable, throwing silently and leaving the map at the default `[43, -1] zoom 6` view. Now iterates `mapLayers.routes` layers via `getBounds()` and extends with every CP coordinate so the whole course frames on first render.
-- **Map marker labels no longer flicker on refresh.** Marker icons are only re-created when their HTML actually changes. Both `renderMap()` and the 2-second interpolation ticker now use `L.Marker.prototype.setLatLng` directly to bypass MarkerClusterGroup's override (which removes and re-adds the marker, causing DOM flicker). The ticker also skips markers whose position hasn't moved. Routes and checkpoints are cached and only rebuilt when geo data changes.
-- **Follow mode auto-disables when user pans the map.** Dragging the map now turns off the "follow" toggle so the view stays where you moved it.
+## 2f0bacc — Interpolate rider positions between GPS pings, snapping to route when available
 
+### Added
 - **Rider position interpolation between pings.** Estimates rider positions between GPS pings using time-based interpolation. When the event has a route, riders are interpolated along the route polyline (snapped within 2 km threshold); without a route, linear lat/lng interpolation is used. Beyond the last known point, extrapolates up to 2 minutes using the rider's last reported speed and bearing. A 2-second ticker smoothly repositions markers in live mode without requiring a full data refresh.
 
-### Changed
-- **Renamed project to "dotwatcher".** All user-facing names, Prometheus metric prefixes (`madcap_*` → `dotwatcher_*`), localStorage keys, notification tags, Docker service/container/network names, Grafana dashboard/folder names, env vars (`MADCAP_CACHE_DIR` → `DOTWATCHER_CACHE_DIR`, `MADCAP_WARM_SLUG` → `DOTWATCHER_WARM_SLUG`), user-agent string, Cargo package name, and Dockerfile binary references updated. External `api.madcap.cc` upstream URL unchanged.
+## 8645c69 — Use snails data for virtual pacer instead of requiring route named "Cactus"
 
 ### Fixed
 - **Virtual pacer now uses `snails` data from route.** The pacer previously only appeared when a route was named "Cactus". It now detects routes with a `snails` array (upstream's current pacer format), uses the snail's own start/end dates and custom logo image. Falls back to the old "Cactus" route name for backward compatibility.
 
+## d16f8af — Rename project from madcap_fast to dotwatcher
+
+### Changed
+- **Renamed project to "dotwatcher".** All user-facing names, Prometheus metric prefixes (`madcap_*` → `dotwatcher_*`), localStorage keys, notification tags, Docker service/container/network names, Grafana dashboard/folder names, env vars (`MADCAP_CACHE_DIR` → `DOTWATCHER_CACHE_DIR`, `MADCAP_WARM_SLUG` → `DOTWATCHER_WARM_SLUG`), user-agent string, Cargo package name, and Dockerfile binary references updated. External `api.madcap.cc` upstream URL unchanged.
+
+## ee3a140 — Add image proxy with resize and WebP conversion
+
 ### Added
 - **Image proxy with resize and WebP conversion.** New `/img?url=...&w=...` endpoint fetches images from Google Cloud Storage, resizes them to the requested width (max 800px), converts to WebP, and caches the result on disk. All frontend image rendering (event banners, journal photos, feed thumbnails, sponsor logos) now routes through the proxy with size-appropriate widths (800/440/280/300px), drastically reducing download sizes.
+
+## d4a51d4 / 094c1f4 — GPX download button with dropdown for routes and rider traces
+
+### Added
 - **Download GPX button on the map.** A "⬇ GPX" button in the map overlay opens a dropdown listing all available downloads: course routes (from geo routes, e.g. "Cactus") and rider traces (selected rider or all riders). Routes are converted from GeoJSON to GPX; rider traces include elevation and absolute timestamps.
 
 ## cd2f1a6 — Sort past events by end date (newest first)
