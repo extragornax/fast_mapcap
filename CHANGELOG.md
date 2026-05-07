@@ -6,6 +6,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 
 ## [Unreleased]
 
+### Added
+- **Street View link in rider map popup.** Rider popup now shows a "street view ↗" link next to "open details" that opens Google Maps Street View centered at the rider's last known position (`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=LAT,LNG`) in a new tab. Hidden when no position is available. `.popup-actions` switched to a flex row so the link and button align.
+
 ## eac755a — Add "estimate" toggle to opt into rider position interpolation
 
 ### Added

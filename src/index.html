@@ -189,9 +189,11 @@
   .leaflet-control-attribution a { color: var(--mute) !important; }
   .leaflet-bar a, .leaflet-bar a:hover { background: var(--panel); color: var(--fg); border-bottom-color: var(--border); }
   .leaflet-bar a:hover { background: var(--panel-2); }
-  .popup-actions { margin-top: 6px; }
+  .popup-actions { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .popup-actions button { background: var(--panel-2); border: 1px solid var(--border); color: var(--fg); padding: 3px 8px; border-radius: 4px; font: 12px inherit; cursor: pointer; }
   .popup-actions button:hover { background: #2a3139; }
+  .popup-actions .popup-link { background: var(--panel-2); border: 1px solid var(--border); color: var(--fg); padding: 3px 8px; border-radius: 4px; font: 12px inherit; cursor: pointer; text-decoration: none; }
+  .popup-actions .popup-link:hover { background: #2a3139; }
   /* Home view */
   #view-home { padding: 22px 24px 40px; max-width: 1400px; margin: 0 auto; }
   .home-head { display: flex; gap: 16px; align-items: baseline; margin-bottom: 18px; flex-wrap: wrap; }
@@ -2055,13 +2057,16 @@ if (location.hostname === 'madcap.extragornax.fr') {
     const pt = lastPointOf(p.id);
     const when = pt ? sinceText(p.last_ping || new Date(Date.now() - 0).toISOString()) : '—';
     const isFav = favs.has(p.id);
+    const sv = pt
+      ? `<a class="popup-link" href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${pt.lat},${pt.lng}" target="_blank" rel="noopener" title="open Google Street View at this location">street view ↗</a>`
+      : '';
     return `
       <div><b>#${p.overall_rank ?? '-'}</b> ${escape(p.first_name || '')} ${escape(p.last_name || '')}${orgaBadge(p)} <button class="star ${isFav ? 'on' : ''}" data-action="fav" data-id="${escape(p.id)}" title="favorite" aria-pressed="${isFav}">★</button></div>
       <div style="color:var(--mute);font-size:12px;margin-top:2px">bib ${escape(p.bib || '-')} · ${escape((p.attributes && p.attributes.category) || '')}</div>
       <div style="margin-top:6px"><b>${fmtKm(p.distance)}</b> @ ${fmtKmh(p.speed)}</div>
       <div style="color:var(--mute);font-size:12px">to next CP: ${fmtKm(p.distance_to_next_cp)}</div>
       <div style="color:var(--mute);font-size:12px">last ping: ${when}${p.sleeping ? ' · zZz' : ''}${p.battery != null ? ' · ' + p.battery + '%' : ''}</div>
-      <div class="popup-actions"><button data-action="detail" data-id="${escape(p.id)}">open details →</button></div>
+      <div class="popup-actions"><button data-action="detail" data-id="${escape(p.id)}">open details →</button>${sv}</div>
     `;
   }
 
