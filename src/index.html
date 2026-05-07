@@ -98,6 +98,8 @@
   .map-scrubber button { padding: 3px 9px; min-width: 30px; }
   .map-scrubber .scrub-time { font-variant-numeric: tabular-nums; min-width: 130px; text-align: center; color: var(--mute); }
   .map-scrubber .scrub-time.scrubbing { color: var(--warn); }
+  .map-scrubber .scrub-elapsed { font-variant-numeric: tabular-nums; color: var(--accent); padding: 2px 8px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border); white-space: nowrap; }
+  .map-scrubber .scrub-elapsed .lbl { color: var(--mute); margin-right: 4px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
   #detail { padding: 18px 22px; overflow: auto; max-height: calc(100vh - 52px); }
   #detail h2 { margin: 0 0 6px; font-size: 20px; }
   #detail .tagline { color: var(--mute); margin: 0 0 18px; }
@@ -370,6 +372,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
     </select>
     <input id="scrub-slider" type="range" min="0" max="1000" step="1" value="1000" />
     <span id="scrub-time" class="scrub-time">live</span>
+    <span id="map-elapsed" class="scrub-elapsed" title="time elapsed since event start"><span class="lbl">T+</span><span id="map-elapsed-val">—</span></span>
     <button id="scrub-live" class="map-btn" type="button" title="jump to live">live</button>
   </div>
   <div class="map-overlay">
@@ -799,6 +802,19 @@ if (location.hostname === 'madcap.extragornax.fr') {
     if (!d) return iso;
     return d.toLocaleString(undefined, { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   };
+  function fmtElapsed(ms) {
+    if (ms == null || isNaN(ms)) return '—';
+    if (ms < 0) return '—';
+    const totalSec = Math.floor(ms / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad = (n) => n.toString().padStart(2, '0');
+    return d > 0
+      ? `${d}d ${pad(h)}:${pad(m)}:${pad(s)}`
+      : `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
   const sinceText = (iso) => {
     if (!iso) return '—';
     const ms = utcMs(iso);
@@ -848,6 +864,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
     else renderOverview();
     if (map) renderMap();
     if (currentTab === 'feed') renderFeed();
+    refreshElapsed();
     writeUrlState();
   }
 
@@ -1026,6 +1043,19 @@ if (location.hostname === 'madcap.extragornax.fr') {
       timeEl.classList.add('scrubbing');
     }
     playBtn.textContent = playing ? '⏸' : '▶';
+    refreshElapsed();
+  }
+
+  function refreshElapsed() {
+    const startMs = eventStartMs();
+    if (!startMs) return;
+    const ref = playbackTime == null ? Date.now() : playbackTime;
+    const elapsed = ref - startMs;
+    const text = fmtElapsed(elapsed);
+    const mv = document.getElementById('map-elapsed-val');
+    if (mv) mv.textContent = text;
+    const gv = document.getElementById('general-elapsed-val');
+    if (gv) gv.textContent = text;
   }
 
   function setPlaybackTime(ms) {
@@ -2416,6 +2446,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
         <div class="stat"><div class="label">Surface</div><div class="value">${escape(info.surface || '—')}</div></div>
         <div class="stat"><div class="label">Starts</div><div class="value">${fmtTime(info.start_date)}</div></div>
         <div class="stat"><div class="label">Ends</div><div class="value">${fmtTime(info.end_date)}</div></div>
+        <div class="stat"><div class="label">Elapsed</div><div class="value" id="general-elapsed-val">—</div></div>
       </div>
       <h3 style="margin:18px 0 6px">Checkpoints</h3>
       <table>
@@ -3366,6 +3397,7 @@ if (location.hostname === 'madcap.extragornax.fr') {
       }
       if (urlState.tab && urlState.tab !== 'list') setTab(urlState.tab);
       refreshTimer = setInterval(load, 30000);
+      setInterval(refreshElapsed, 1000);
     }).catch(e => {
       document.getElementById('body').innerHTML = `<div class="err">${escape(e.message)}</div>`;
     });

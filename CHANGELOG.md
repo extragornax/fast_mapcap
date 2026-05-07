@@ -6,6 +6,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 
 ## [Unreleased]
 
+### Added
+- **Elapsed time since event start.** Map scrubber now shows a `T+ HH:MM:SS` (or `Dd HH:MM:SS` past 24 h) chip next to the live time. Event overview grid gets a matching "Elapsed" stat tile. A 1 s ticker keeps both fresh; while scrubbing, the value follows the scrubber position rather than wall time.
+
 ## 7a22d2a — Add Street View link to rider map popup
 
 ### Added
