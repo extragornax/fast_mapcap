@@ -1216,14 +1216,21 @@ if (location.hostname === 'madcap.extragornax.fr') {
       }
     }
 
-    // Fit once on first render.
+    // Fit once on first render: cover full GPX route + all checkpoints.
     if (!mapLayers.didFit) {
       let bounds = null;
-      for (const b of allRouteBounds) bounds = bounds ? bounds.extend(b) : L.latLngBounds(b.getSouthWest(), b.getNorthEast());
+      mapLayers.routes.eachLayer(layer => {
+        if (typeof layer.getBounds !== 'function') return;
+        const b = layer.getBounds();
+        if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : L.latLngBounds(b.getSouthWest(), b.getNorthEast());
+      });
+      for (const c of (state.geo.cps || [])) {
+        const ll = [c.latitude, c.longitude];
+        bounds = bounds ? bounds.extend(ll) : L.latLngBounds(ll, ll);
+      }
       if (!bounds) {
         const pts = [];
         for (const m of mapLayers.participantMarkers.values()) pts.push(m.getLatLng());
-        for (const c of (state.geo.cps || [])) pts.push([c.latitude, c.longitude]);
         if (pts.length) bounds = L.latLngBounds(pts);
       }
       if (bounds && bounds.isValid()) {

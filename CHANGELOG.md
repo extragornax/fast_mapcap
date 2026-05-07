@@ -10,6 +10,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 - **UI micro-animations.** Elevation banner fades/slides in instead of popping. Settings and GPX panels scale in from their trigger corner with a strong ease-out curve. Map buttons, tabs, pills, cards, and star toggles have press feedback (subtle scale on `:active`). Side menu uses a stronger iOS-style drawer easing. Cards lift with a shadow on hover. All animations respect `prefers-reduced-motion`.
 
 ### Fixed
+- **Map auto-fits to full GPX route + all checkpoints on open.** Initial fit was referencing an undefined `allRouteBounds` variable, throwing silently and leaving the map at the default `[43, -1] zoom 6` view. Now iterates `mapLayers.routes` layers via `getBounds()` and extends with every CP coordinate so the whole course frames on first render.
 - **Map marker labels no longer flicker on refresh.** Marker icons are only re-created when their HTML actually changes. Both `renderMap()` and the 2-second interpolation ticker now use `L.Marker.prototype.setLatLng` directly to bypass MarkerClusterGroup's override (which removes and re-adds the marker, causing DOM flicker). The ticker also skips markers whose position hasn't moved. Routes and checkpoints are cached and only rebuilt when geo data changes.
 - **Follow mode auto-disables when user pans the map.** Dragging the map now turns off the "follow" toggle so the view stays where you moved it.
 
