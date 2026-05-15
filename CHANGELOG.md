@@ -6,6 +6,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/). Entries 
 
 ## [Unreleased]
 
+### Added
+- **Tally analytics pixel.** Cookieless, JS-free 1×1 tracking pixel pointing to `https://tally.extragornax.fr/t/dotwatcher` injected before `</body>` in `src/index.html`, per the Tally INTEGRATION.md spec. `referrerpolicy="no-referrer-when-downgrade"` preserves the page path for traffic-source attribution. No IP, UA, or cookie is stored server-side; RGPD-friendly by design.
+
 ## e4db557 — Show elapsed time since event start on map and overview
 
 ### Added
